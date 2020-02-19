@@ -5,12 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/buger/jsonparser"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
@@ -34,7 +36,10 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 
 	fpath := flag.String("path", "", "Path with article files.")
-	fauthor := flag.String("author", "marvin", "Default Author.")
+	fauthor := flag.String("author", "marvin", "Default author.")
+	fgiphykey := flag.String("giphykey", "", "GIPHY API key.")
+
+	_ = *fgiphykey
 
 	flag.Parse()
 
@@ -44,7 +49,8 @@ func main() {
 	defer wg.Wait()
 
 	for _, a := range articles {
-		wg.Add(1) // nolint:gmnd
+		wg.Add(1) // nolint:gomnd
+
 		go worker(a, *fauthor, &wg)
 	}
 }
@@ -71,7 +77,7 @@ func (a *Article) Parse(aut string) {
 	scanner := bufio.NewScanner(strings.NewReader(string(dat)))
 	text := []string{}
 
-	// nolint:gmnd
+	// nolint:gomnd
 	for scanner.Scan() {
 		t := scanner.Text()
 
@@ -85,9 +91,11 @@ func (a *Article) Parse(aut string) {
 		if len(date) >= 2 {
 			d := date[1] + " CET"
 			conTime, err := time.Parse("2006-01-02 15:04 MST", d)
+
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			a.Meta.Date = conTime.Format(time.RFC3339)
 
 			continue
@@ -162,7 +170,6 @@ func (a *Article) Write() {
 }
 
 // Clean writes some tags new and cleans stuff out.
-// TODO: giphy
 // TODO: internal links
 // TODO: soundcloud
 // nolint: godox
@@ -178,6 +185,13 @@ func (a *Article) Clean() {
 	vRe := regexp.MustCompile(`({%\svimeo\s(.+)\s%})`)
 	if vRe.MatchString(a.Text) {
 		new := vRe.ReplaceAllString(a.Text, "{{ <vimeo $2> }}")
+		a.Text = new
+	}
+
+	// giphy
+	gRe := regexp.MustCompile(`({%\sgiphy\s(.+)\s%})`)
+	if gRe.MatchString(a.Text) {
+		new := gRe.ReplaceAllString(a.Text, "{{ <vimeo $2> }}")
 		a.Text = new
 	}
 }
@@ -209,4 +223,49 @@ func files(d string) []string {
 	}
 
 	return f
+}
+
+func giphyURL(id, apiKey string) string {
+	if apiKey == "" {
+		log.Fatal("missing GIPHY API key!")
+	}
+
+	log.Printf("========")
+	defer log.Printf("========")
+
+	url := fmt.Sprintf("http://api.giphy.com/v1/gifs/%s?api_key=%s", id, apiKey)
+	resp, err := http.Get(url) // nolint:gosec
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	imgSrc, err := jsonparser.GetString(bodyBytes, "data", "images", "original", "url")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("imgSrc: %v", imgSrc)
+
+	aHref, err := jsonparser.GetString(bodyBytes, "data", "url")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("aHref: %v", aHref)
+
+	imgAlt, err := jsonparser.GetString(bodyBytes, "data", "source")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("imgAlt: %v", imgAlt)
+
+	return fmt.Sprintf(`<a href="%s"><img src="%s" alt="%s"></a>`, aHref, imgSrc, imgAlt)
 }

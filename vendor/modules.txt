@@ -1,6 +1,8 @@
+# github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
+github.com/buger/jsonparser
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/konsorten/go-windows-terminal-sequences v1.0.1
+# github.com/konsorten/go-windows-terminal-sequences v1.0.2
 github.com/konsorten/go-windows-terminal-sequences
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
@@ -8,7 +10,7 @@ github.com/pmezard/go-difflib/difflib
 github.com/sirupsen/logrus
 # github.com/stretchr/testify v1.2.2
 github.com/stretchr/testify/assert
-# golang.org/x/sys v0.0.0-20190422165155-953cdadca894
+# golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c
 golang.org/x/sys/unix
 # gopkg.in/yaml.v2 v2.2.8
 gopkg.in/yaml.v2
