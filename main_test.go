@@ -40,12 +40,13 @@ func TestArticleParse(t *testing.T) {
 					Author: "marvin",
 					Draft:  false,
 				},
-				"Als ich als 16 jähriges LiveJournal Einträge durchforstete.\n\n{% youtube CaZUVZ2F_Dc %}\n\n{% youtube q1XUaXk92KA %}",
+				"Als ich als 16 jähriges LiveJournal Einträge durchforstete.\n\n{% youtube CaZUVZ2F_Dc %}\n\n{% youtube q1XUaXk92KA %}", // nolint:lll
 				filepath.Join("testdata", "zwei-neue-american-football-songs.md"),
 				"",
 			},
 		},
 	}
+
 	for _, table := range tables {
 		a := Article{}
 		a.Path = table.path
@@ -75,6 +76,7 @@ draft: true
 			filepath.Join("testdata", "1up-berlin.md"),
 		},
 	}
+
 	for _, table := range tables {
 		a := Article{}
 		a.Path = table.path
@@ -108,6 +110,7 @@ Jeder der einmal durch Berlin gelaufen ist kennt sie.
 {% youtube QXxXoSTPivA %}`,
 		},
 	}
+
 	for _, table := range tables {
 		a := Article{}
 		a.Path = table.path
@@ -140,7 +143,7 @@ func TestArticleCLean(t *testing.T) {
 		},
 		{
 			"[Artikel]({static}/posts/meine-neue-shell-xonsh.md)\n[postmodernen Neubaugebiet]({static}/posts/kerksiek-006.md)",
-			"[Artikel]({{< ref \"/posts/meine-neue-shell-xonsh.md\" >}})\n[postmodernen Neubaugebiet]({{< ref \"/posts/kerksiek-006.md\" >}})",
+			"[Artikel]({{< ref \"/posts/meine-neue-shell-xonsh.md\" >}})\n[postmodernen Neubaugebiet]({{< ref \"/posts/kerksiek-006.md\" >}})", // nolint:lll
 		},
 	}
 
