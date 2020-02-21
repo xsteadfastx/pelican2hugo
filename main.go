@@ -27,9 +27,10 @@ type Meta struct {
 }
 
 type Article struct {
-	Meta Meta
-	Text string
-	Path string
+	Meta     Meta
+	Text     string
+	Path     string
+	GiphyAPI string
 }
 
 func main() {
@@ -51,17 +52,19 @@ func main() {
 	for _, a := range articles {
 		wg.Add(1) // nolint:gomnd
 
-		go worker(a, *fauthor, &wg)
+		go worker(a, *fauthor, *fgiphykey, &wg)
 	}
 }
 
-func worker(art string, aut string, wg *sync.WaitGroup) {
+func worker(art string, aut string, giphyKey string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Infof("work on %s", art)
 
 	a := Article{}
 	a.Path = art
+	a.GiphyAPI = giphyKey
 	a.Parse(aut)
+	a.Clean()
 
 	fmt.Print(a.Create())
 }
@@ -71,7 +74,7 @@ func worker(art string, aut string, wg *sync.WaitGroup) {
 func (a *Article) Parse(aut string) {
 	dat, err := ioutil.ReadFile(a.Path)
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"article": a}).Fatal(err)
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(dat)))
@@ -93,7 +96,7 @@ func (a *Article) Parse(aut string) {
 			conTime, err := time.Parse("2006-01-02 15:04 MST", d)
 
 			if err != nil {
-				log.Fatal(err)
+				log.WithFields(log.Fields{"article": a}).Fatal(err)
 			}
 
 			a.Meta.Date = conTime.Format(time.RFC3339)
@@ -151,7 +154,7 @@ func (a *Article) Parse(aut string) {
 func (a *Article) MetaYAML() string {
 	out, err := yaml.Marshal(a.Meta)
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"article": a}).Fatal(err)
 	}
 
 	return string(out)
@@ -165,33 +168,57 @@ func (a *Article) Create() string {
 // Write writes the file back to path.
 func (a *Article) Write() {
 	if err := ioutil.WriteFile(a.Path, []byte(a.Create()), 0644); err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"article": a}).Fatal(err)
 	}
 }
 
 // Clean writes some tags new and cleans stuff out.
 // TODO: internal links
-// TODO: soundcloud
 // nolint: godox
 func (a *Article) Clean() {
 	// youtube
 	yRe := regexp.MustCompile(`({%\syoutube\s(.+)\s%})`)
 	if yRe.MatchString(a.Text) {
-		new := yRe.ReplaceAllString(a.Text, "{{ <youtube $2> }}")
+		new := yRe.ReplaceAllString(a.Text, "{{< youtube $2 >}}")
 		a.Text = new
 	}
 
 	// vimeo
 	vRe := regexp.MustCompile(`({%\svimeo\s(.+)\s%})`)
 	if vRe.MatchString(a.Text) {
-		new := vRe.ReplaceAllString(a.Text, "{{ <vimeo $2> }}")
+		new := vRe.ReplaceAllString(a.Text, "{{< vimeo $2 >}}")
 		a.Text = new
 	}
 
 	// giphy
 	gRe := regexp.MustCompile(`({%\sgiphy\s(.+)\s%})`)
-	if gRe.MatchString(a.Text) {
-		new := gRe.ReplaceAllString(a.Text, "{{ <vimeo $2> }}")
+	for _, m := range gRe.FindAllStringSubmatch(a.Text, -1) {
+		mRe := regexp.MustCompile(m[0])
+		new := mRe.ReplaceAllString(a.Text, giphyURL(m[2], a.GiphyAPI))
+		a.Text = new
+	}
+
+	// soundcloud
+	sRe := regexp.MustCompile(`({%\ssoundcloud\s(.+)\s%})`)
+	for _, m := range sRe.FindAllStringSubmatch(a.Text, -1) {
+		mRe := regexp.MustCompile(m[0])
+		new := mRe.ReplaceAllString(a.Text, soundcloudURL(m[2]))
+		a.Text = new
+	}
+
+	// images
+	iRe := regexp.MustCompile(`(?U)!\[(.+)?\]\(({static}(\/images\/.+))\)`)
+	for _, m := range iRe.FindAllStringSubmatch(a.Text, -1) {
+		mRe := regexp.MustCompile(m[2])
+		new := mRe.ReplaceAllString(a.Text, m[3])
+		a.Text = new
+	}
+
+	// internal post links
+	pRe := regexp.MustCompile(`\[(.+)\]\(({static}(\/.+\.md))\)`)
+	for _, m := range pRe.FindAllStringSubmatch(a.Text, -1) {
+		mRe := regexp.MustCompile(m[2])
+		new := mRe.ReplaceAllString(a.Text, fmt.Sprintf(`{{< ref "%s" >}}`, m[3]))
 		a.Text = new
 	}
 }
@@ -202,20 +229,20 @@ func files(d string) []string {
 	files, err := ioutil.ReadDir(d)
 
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"directory": d}).Fatal(err)
 	}
 
 	for _, file := range files {
 		matched, err := filepath.Match("*.md", file.Name())
 
 		if err != nil {
-			log.Fatal(err)
+			log.WithFields(log.Fields{"file": file}).Fatal(err)
 		}
 
 		if matched {
 			abs, err := filepath.Abs(filepath.Join(d, file.Name()))
 			if err != nil {
-				log.Fatal(err)
+				log.WithFields(log.Fields{"file": file}).Fatal(err)
 			}
 
 			f = append(f, abs)
@@ -230,42 +257,56 @@ func giphyURL(id, apiKey string) string {
 		log.Fatal("missing GIPHY API key!")
 	}
 
-	log.Printf("========")
-	defer log.Printf("========")
-
 	url := fmt.Sprintf("http://api.giphy.com/v1/gifs/%s?api_key=%s", id, apiKey)
 	resp, err := http.Get(url) // nolint:gosec
 
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"giphy id": id}).Fatal(err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"giphy id": id}).Fatal(err)
 	}
 
 	imgSrc, err := jsonparser.GetString(bodyBytes, "data", "images", "original", "url")
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"giphy id": id}).Fatal(err)
 	}
-
-	log.Printf("imgSrc: %v", imgSrc)
 
 	aHref, err := jsonparser.GetString(bodyBytes, "data", "url")
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"giphy id": id}).Fatal(err)
 	}
-
-	log.Printf("aHref: %v", aHref)
 
 	imgAlt, err := jsonparser.GetString(bodyBytes, "data", "source")
 	if err != nil {
-		log.Fatal(err)
+		log.WithFields(log.Fields{"giphy id": id}).Fatal(err)
 	}
 
-	log.Printf("imgAlt: %v", imgAlt)
-
+	// return fmt.Sprintf(`<a href="%s"><img src="%s" alt="%s"></a>`, aHref, imgSrc, imgAlt)
 	return fmt.Sprintf(`<a href="%s"><img src="%s" alt="%s"></a>`, aHref, imgSrc, imgAlt)
+}
+
+func soundcloudURL(turl string) string {
+	url := fmt.Sprintf("https://soundcloud.com/oembed?format=json&url=%s", turl)
+	resp, err := http.Get(url) // nolint:gosec
+
+	if err != nil {
+		log.WithFields(log.Fields{"url": turl}).Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.WithFields(log.Fields{"url": turl}).Fatal(err)
+	}
+
+	emb, err := jsonparser.GetString(bodyBytes, "html")
+	if err != nil {
+		log.WithFields(log.Fields{"url": turl}).Fatal(err)
+	}
+
+	return emb
 }

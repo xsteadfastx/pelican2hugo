@@ -26,6 +26,7 @@ func TestArticleParse(t *testing.T) {
 				},
 				"Jeder der einmal durch Berlin gelaufen ist kennt sie.\n\n{% youtube QXxXoSTPivA %}",
 				filepath.Join("testdata", "1up-berlin.md"),
+				"",
 			},
 		},
 		{
@@ -41,6 +42,7 @@ func TestArticleParse(t *testing.T) {
 				},
 				"Als ich als 16 jähriges LiveJournal Einträge durchforstete.\n\n{% youtube CaZUVZ2F_Dc %}\n\n{% youtube q1XUaXk92KA %}",
 				filepath.Join("testdata", "zwei-neue-american-football-songs.md"),
+				"",
 			},
 		},
 	}
@@ -122,11 +124,23 @@ func TestArticleCLean(t *testing.T) {
 	}{
 		{
 			"{% youtube IvTNBbFkq4w %}",
-			"{{ <youtube IvTNBbFkq4w> }}",
+			"{{< youtube IvTNBbFkq4w >}}",
 		},
 		{
 			"{% vimeo 28938294 %}",
-			"{{ <vimeo 28938294> }}",
+			"{{< vimeo 28938294 >}}",
+		},
+		{
+			"{% youtube foo %}\n{% youtube bar %}",
+			"{{< youtube foo >}}\n{{< youtube bar >}}",
+		},
+		{
+			"[![cc-by-sa Santaduck]({static}/images/Obeyshepard2.jpg)](https://en.wikipedia.org/wiki/File:Obeyshepard2.jpg)",
+			"[![cc-by-sa Santaduck](/images/Obeyshepard2.jpg)](https://en.wikipedia.org/wiki/File:Obeyshepard2.jpg)",
+		},
+		{
+			"[Artikel]({static}/posts/meine-neue-shell-xonsh.md)\n[postmodernen Neubaugebiet]({static}/posts/kerksiek-006.md)",
+			"[Artikel]({{< ref \"/posts/meine-neue-shell-xonsh.md\" >}})\n[postmodernen Neubaugebiet]({{< ref \"/posts/kerksiek-006.md\" >}})",
 		},
 	}
 
