@@ -285,8 +285,7 @@ func giphyURL(id, apiKey string) string {
 		log.WithFields(log.Fields{"giphy id": id}).Fatal(err)
 	}
 
-	// return fmt.Sprintf(`<a href="%s"><img src="%s" alt="%s"></a>`, aHref, imgSrc, imgAlt)
-	return fmt.Sprintf(`<a href="%s"><img src="%s" alt="%s"></a>`, aHref, imgSrc, imgAlt)
+	return fmt.Sprintf(`[![%s](%s)](%s)`, imgAlt, imgSrc, aHref)
 }
 
 func soundcloudURL(turl string) string {
