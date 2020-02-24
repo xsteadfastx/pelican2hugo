@@ -65,8 +65,7 @@ func worker(art string, aut string, giphyKey string, wg *sync.WaitGroup) {
 	a.GiphyAPI = giphyKey
 	a.Parse(aut)
 	a.Clean()
-
-	fmt.Print(a.Create())
+	a.Write()
 }
 
 // Parse reads file and parses it components
@@ -173,7 +172,6 @@ func (a *Article) Write() {
 }
 
 // Clean writes some tags new and cleans stuff out.
-// TODO: internal links
 // nolint: godox
 func (a *Article) Clean() {
 	// youtube
