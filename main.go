@@ -191,15 +191,15 @@ func (a *Article) Clean() {
 	// giphy
 	gRe := regexp.MustCompile(`({%\sgiphy\s(.+)\s%})`)
 	for _, m := range gRe.FindAllStringSubmatch(a.Text, -1) {
-		mRe := regexp.MustCompile(m[0])
+		mRe := regexp.MustCompile(regexp.QuoteMeta(m[0]))
 		new := mRe.ReplaceAllString(a.Text, giphyURL(m[2], a.GiphyAPI))
 		a.Text = new
 	}
 
 	// soundcloud
-	sRe := regexp.MustCompile(`({%\ssoundcloud\s(.+)\s%})`)
+	sRe := regexp.MustCompile(`(?U)({%\ssoundcloud\s(.+)(?:\s|\?.+)%})`)
 	for _, m := range sRe.FindAllStringSubmatch(a.Text, -1) {
-		mRe := regexp.MustCompile(m[0])
+		mRe := regexp.MustCompile(regexp.QuoteMeta(m[0]))
 		new := mRe.ReplaceAllString(a.Text, soundcloudURL(m[2]))
 		a.Text = new
 	}
@@ -207,7 +207,7 @@ func (a *Article) Clean() {
 	// images
 	iRe := regexp.MustCompile(`(?U)!\[(.+)?\]\(({static}(\/images\/.+))\)`)
 	for _, m := range iRe.FindAllStringSubmatch(a.Text, -1) {
-		mRe := regexp.MustCompile(m[2])
+		mRe := regexp.MustCompile(regexp.QuoteMeta(m[2]))
 		new := mRe.ReplaceAllString(a.Text, m[3])
 		a.Text = new
 	}
@@ -215,7 +215,7 @@ func (a *Article) Clean() {
 	// internal post links
 	pRe := regexp.MustCompile(`\[(.+)\]\(({static}(\/.+\.md))\)`)
 	for _, m := range pRe.FindAllStringSubmatch(a.Text, -1) {
-		mRe := regexp.MustCompile(m[2])
+		mRe := regexp.MustCompile(regexp.QuoteMeta(m[2]))
 		new := mRe.ReplaceAllString(a.Text, fmt.Sprintf(`{{< ref "%s" >}}`, m[3]))
 		a.Text = new
 	}
@@ -286,6 +286,7 @@ func giphyURL(id, apiKey string) string {
 	return fmt.Sprintf(`[![%s](%s)](%s)`, imgAlt, imgSrc, aHref)
 }
 
+// nolint:lll
 func soundcloudURL(turl string) string {
 	url := fmt.Sprintf("https://soundcloud.com/oembed?format=json&url=%s", turl)
 	resp, err := http.Get(url) // nolint:gosec
@@ -305,5 +306,18 @@ func soundcloudURL(turl string) string {
 		log.WithFields(log.Fields{"url": turl}).Fatal(err)
 	}
 
-	return emb
+	// nolint:lll
+	rID := regexp.MustCompile(`<iframe width="\d+%" height="\d+" scrolling="no" frameborder="no" src="https:\/\/w\.soundcloud\.com\/player\/\?visual=true&url=https%3A%2F%2Fapi\.soundcloud\.com%2F(tracks|playlists)%2F(\d+)&.+`)
+
+	id := rID.FindAllStringSubmatch(emb, -1)
+
+	if len(id) == 0 {
+		log.WithFields(log.Fields{"url": turl, "emb": fmt.Sprint(emb), "re": fmt.Sprintf("%+v", id)}).Fatal("could not find soundcloud id.")
+	}
+
+	if len(id[0]) == 0 {
+		log.WithFields(log.Fields{"url": turl, "emb": fmt.Sprint(emb), "re": fmt.Sprintf("%+v", id)}).Fatal("could not find soundcloud id.")
+	}
+
+	return fmt.Sprintf("{{< soundcloud_%s %s >}}", id[0][1], id[0][2])
 }
